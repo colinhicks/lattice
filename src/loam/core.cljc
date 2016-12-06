@@ -5,7 +5,8 @@
    [clojure.walk :as walk]
    [om.dom :as dom]
    [om.next :as om #?(:clj  :refer
-                      :cljs :refer-macros) [defui ui invariant]]))
+                      :cljs :refer-macros) [defui ui invariant]])
+  #?(:clj (:import [clojure.lang ExceptionInfo])))
 
 
 ;; todo: expect om.dom/create-element in >alpha47
@@ -22,31 +23,39 @@
 (defn ui-component? [tag]
   (boolean (namespace tag)))
 
-(defn generic-dom-impl [tag]
+(defn dom-impl [tag]
   {:factory (partial create-element tag)})
 
-(s/def ::component om/component?)
+(s/def ::component (s/and fn? om/iquery?))
 (s/def ::factory fn?)
 (s/def ::depends? fn?)
 (s/def ::merge-query fn?)
-(s/def ::ui-info-impl (s/keys :req-un [::component ::factory]
-                              :opt-un [::depends? ::merge-query?]))
+(s/def ::region? boolean?)
+(s/def ::ui-impl-ret
+  (s/keys :req-un [::component ::factory]
+          :opt-un [::depends? ::merge-query ::region?]))
 
-(defmulti ui-impl (fn [tag] tag))
+(defmulti ui-impl (fn [tag node] tag))
 
-(defmethod ui-impl :default [tag]
-  (let [not-implemented-ui
-        (ui
-          static om/IQuery
-          (query [this]
-            [:loam/id])
-          Object
-          (render [this]
-            (apply dom/div #js {:data-id (:loam/id (om/props this))
-                                :data-tag-not-implemented (str tag)}
-                   (om/children this))))]
-    {:component not-implemented-ui
-     :factory (om/factory not-implemented-ui)}))
+(s/fdef ui-impl
+  :args (s/cat :tag keyword? :node vector?)
+  :ret ::ui-impl-ret)
+
+(defn not-implemented-component [tag]
+  (ui
+    static om/IQuery
+    (query [this]
+      [:loam/id])
+    Object
+    (render [this]
+      (apply dom/div #js {:data-id (:loam/id (om/props this))
+                          :data-tag-not-implemented (str tag)}
+             (om/children this)))))
+
+(defmethod ui-impl :default [tag node]
+  (let [component (not-implemented-component tag)]
+    {:component component
+     :factory (om/factory component)}))
 
 (defn normalize-tree [raw-tree]
   (map (fn [node]
@@ -63,21 +72,34 @@
               :children (mapcat normalize-tree children')})))
        [raw-tree]))
 
+(defn update-ex-data [^ExceptionInfo ex f & args]
+  (ex-info #?(:clj (.getMessage ex)
+              :cljs (ex-message ex))
+           (apply f (ex-data ex) args)
+           #?(:clj (.getCause ^ExceptionInfo ex)
+              :cljs (ex-cause ex))))
+
 (defn resolve-implementations [tree]
   (map #(walk/postwalk
          (fn [node]
            (if-let [tag (and (map? node)
                              (:tag node))]
-             (if (ui-component? tag)
-               (assoc node :impl (ui-impl tag))
-               (assoc node :impl (generic-dom-impl tag)))
+             (if-not (ui-component? tag)
+               (assoc node :impl (dom-impl tag))
+               (try
+                 (assoc node :impl (s/assert ::ui-impl-ret (ui-impl tag node)))
+                 (catch ExceptionInfo ex
+                   (throw (update-ex-data ex assoc ::tag tag)))))
              node))
          %)
-   tree))
+       tree))
 
 (defn collect-ui-infos [tree]
   (->> tree
-       (mapcat #(tree-seq (constantly true) :children %))
+       (mapcat (fn [node]
+                 (tree-seq #(not (get-in % [:impl :region?]))
+                           :children
+                           node)))
        (filter :id)))
 
 (defn collect-query [ui-infos]
@@ -89,7 +111,7 @@
                            (if merge-query
                              (merge-query q* opts)
                              q*))
-                         [:id])]
+                         [:loam/id])]
                  {[id '_] q})))
         ui-infos))
 
@@ -126,11 +148,8 @@
                      dependent-reads))
         (om/ast->query))))
 
-(defn region [raw-tree]
-  (let [tree (->> raw-tree
-                  (normalize-tree)
-                  (resolve-implementations))
-        child-uis (collect-ui-infos tree)
+(defn region [resolved-tree]
+  (let [child-uis (collect-ui-infos resolved-tree)
         query (collect-query child-uis)
         region-component
         (ui
@@ -143,15 +162,17 @@
           Object
           (render [this]
             (let [props (om/props this)]
-              (first (rendering-tree props tree)))))]
+              (first (rendering-tree props resolved-tree)))))]
     {:component region-component
      :factory (om/factory region-component)
-     :child-uis child-uis}))
+     :region? true}))
 
+(defmethod ui-impl ::region [_ node]
+  (region (:children node)))
 
 (comment
   (def sample-1
-    [:main {:id "my-region1"}
+    [:div
      [:section
       [:span {:className "label"} "Editor label"]
       [:blueprint/editor {:loam/id ::my-editor
@@ -171,32 +192,37 @@
                          :loam/merge-query {::my-editor [[:blueprint/evaluations ::my-editor]]}
                          :loam/query-params {:audit [::my-editor]}}])
 
+  (def sample-3
+    [:main
+     [::region {:loam/id ::sample-1} sample-1]
+     [::region {:loam/id ::sample-2} sample-2]])
+
+  (s/check-asserts true)
+  
   (normalize-tree sample-2)
 
-  (normalize-tree sample-1)
-
-  (->> sample-1 normalize-tree flatten-components)
+  (normalize-tree sample-3)
 
   (->> sample-1 normalize-tree resolve-implementations)
 
-  (->> sample-1 normalize-tree resolve-implementations flatten-components)
+  (->> sample-3 normalize-tree resolve-implementations)
+  
+  (->> sample-3 normalize-tree resolve-implementations collect-ui-infos #_(map (juxt :tag :id)))
 
-  (om/get-query (:component (region sample-1)))
+  (->> sample-3 normalize-tree resolve-implementations region :component om/get-query)
 
-  (rendering-tree
-   {}
-   (->> sample-1 normalize-tree resolve-implementations))
+  (->> sample-3 normalize-tree resolve-implementations (rendering-tree {}))
 
-  (dom/render-to-str ((:factory (region sample-1))))
+  (-> sample-3 normalize-tree resolve-implementations region :factory (as-> f (dom/render-to-str (f))))
 
-  (defmethod ui-impl :blueprint/auditor [tag]
-    {:dependent? (fn [ks props] (some ks [::my-editor]))
-     :factory (fn [props & children]
-                (apply dom/pre #js {:data-not-implemented (str tag)} children))})
+  (defmethod ui-impl :blueprint/auditor [tag _]
+    (let [component (not-implemented-component tag)]
+      {:dependent? (fn [ks props] (some ks [::my-editor]))
+       :component component
+       :factory (om/factory component)}))
 
   (include-dependent-keys
    '[(foo! {:bar false}) ::my-editor]
    {}
-   (->> sample-1 normalize-tree resolve-implementations flatten-components))
-
+   (->> sample-1 normalize-tree resolve-implementations collect-ui-infos))
  )
