@@ -1,4 +1,4 @@
-(ns loam.core
+(ns loam.alfa.impl
   (:require
    [clojure.spec :as s]
    [clojure.string :as str]
@@ -26,33 +26,8 @@
 (defn dom-impl [tag]
   {:factory (partial create-element tag)})
 
-(s/def ::tag #(and (keyword? %)
-                   (or (ui-component? %)
-                       (some #{(-> % name symbol)} dom/tags))))
-(s/def ::opts (s/? (s/map-of keyword? any? :conform-keys true)))
-(s/def ::children (s/* #(or (string? %)
-                             (s/coll-of ::tree))))
-(s/def ::tree
-  (s/cat :tag ::tag
-         :opts ::opts
-         :children ::children))
-(s/def ::tree-node-unresolved (s/keys :req-un [::tag ::opts ::children]))
-(s/def ::component (s/and fn? om/iquery?))
-(s/def ::factory fn?)
-(s/def ::depends? fn?)
-(s/def ::merge-query fn?)
-(s/def ::region? boolean?)
-(s/def ::ui-impl
-  (s/keys :req-un [::component ::factory]
-          :opt-un [::depends? ::merge-query ::region?]))
-(s/def ::tree-node-resolved (s/keys :req-un [::tag ::opts ::children ::ui-impl]))
 
 (defmulti ui-impl (fn [tag node] tag))
-
-(s/fdef ui-impl
-  :args (s/cat :tag ::tag
-               :node ::tree-node-unresolved)
-  :ret ::ui-impl)
 
 (defn not-implemented-component [tag]
   (ui
@@ -84,13 +59,6 @@
               :children (mapcat normalize-tree children')})))
        [raw-tree]))
 
-(defn update-ex-data [^ExceptionInfo ex f & args]
-  (ex-info #?(:clj (.getMessage ex)
-              :cljs (ex-message ex))
-           (apply f (ex-data ex) args)
-           #?(:clj (.getCause ^ExceptionInfo ex)
-              :cljs (ex-cause ex))))
-
 (defn resolve-implementations [tree]
   (map #(walk/postwalk
          (fn [node]
@@ -98,10 +66,7 @@
                              (:tag node))]
              (if-not (ui-component? tag)
                (assoc node :ui-impl (dom-impl tag))
-               (try
-                 (assoc node :ui-impl (s/assert ::ui-impl (ui-impl tag node)))
-                 (catch ExceptionInfo ex
-                   (throw (update-ex-data ex assoc ::tag tag)))))
+               (assoc node :ui-impl (ui-impl tag node)))
              node))
          %)
        tree))
@@ -180,92 +145,11 @@
               (first (rendering-tree props resolved-tree)))))]
     {:component region-component
      :factory (om/factory region-component)
-     :region? true}))
+     :region? true
+     :tree resolved-tree
+     :child-ui-nodes child-nodes}))
 
 (defmethod ui-impl ::region [_ node]
   (region* (:children node)))
 
-(defn region [tree]
-  (->> tree
-       (normalize-tree)
-       (resolve-implementations)
-       (region*)))
-
-(s/fdef region
-  :args (s/cat :tree ::tree)
-  :ret ::ui-impl)
-
-
-(comment
-  (def sample-1
-    [:div
-     [:section
-      [:span {:className "label"} "Editor label"]
-      [:blueprint/editor {:loam/id ::my-editor
-                          :blueprint.editor/default-input [[:a :b] [:b :c]]
-                          :blueprint.evaluations/init :blueprint.editor/default-input}]
-      [:div {:className "arbitrary-nesting"}
-       [:blueprint/graph {:loam/id ::my-graph
-                          :loam/link {:editor [[:blueprint/evaluations ::my-editor]]}
-                          :loam/query-params {:editor ::my-editor}}
-        [:strong "nested in component"]]]]
-     [:footer {:className "static"}
-      [:blueprint/auditor {:loam/id ::my-auditor
-                           :loam/link {::my-editor [[:blueprint/evaluations ::my-editor]]}}]]])
-
-  (def sample-2
-    [:blueprint/auditor {:loam/id ::my-auditor
-                         :loam/merge-query {::my-editor [[:blueprint/evaluations ::my-editor]]}
-                         :loam/query-params {:audit [::my-editor]}}])
-
-  (def sample-3
-    [:main
-     [::region {:loam/id ::sample-1} sample-1]
-     [::region {:loam/id ::sample-2} sample-2]])
-
-  (s/check-asserts true)
-  
-  (normalize-tree sample-2)
-
-  (normalize-tree sample-3)
-
-  (->> sample-1 normalize-tree resolve-implementations)
-
-  (->> sample-3 normalize-tree resolve-implementations)
-  
-  (->> sample-3 normalize-tree resolve-implementations collect-ui-nodes #_(map (juxt :tag :id)))
-
-  (->> sample-3 normalize-tree resolve-implementations region* :component om/get-query)
-
-  (->> sample-3 normalize-tree resolve-implementations (rendering-tree {}))
-
-  (-> sample-3 normalize-tree resolve-implementations region* :factory (as-> f (dom/render-to-str (f))))
-
-  (-> sample-3 region :factory (as-> f (dom/render-to-str (f))))
-
-  (defmethod ui-impl :blueprint/auditor [tag _]
-    (let [component (not-implemented-component tag)]
-      {:dependent? (fn [ks props] (some ks [::my-editor]))
-       :component component
-       :factory (om/factory component)}))
-
-  (include-dependent-keys
-   '[(foo! {:bar false}) ::my-editor]
-   {}
-   (->> sample-1 normalize-tree resolve-implementations collect-ui-nodes))
- )
-
-(comment
-  (s/conform ::tree [:div])
-  (= :clojure.spec/invalid
-     (s/conform ::tree [:dive]))
-  (s/conform ::tree [:div {:aaa "zzz" :bbb 1}])
-  (s/conform ::tree [:div [:span "spantext"]])
-  (s/conform ::tree [:div "divtext"])
-  (s/conform ::tree [:div {:id "zyx"} "divtext"])
-  (s/conform ::tree [:div {:id "zyx"}
-                     [:div {:id "xyz"} "inner"]
-                     [:span [:strong "strongtext"]]])
-  
-  )
 
