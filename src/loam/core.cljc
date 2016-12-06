@@ -26,20 +26,33 @@
 (defn dom-impl [tag]
   {:factory (partial create-element tag)})
 
+(s/def ::tag #(and (keyword? %)
+                   (or (ui-component? %)
+                       (some #{(-> % name symbol)} dom/tags))))
+(s/def ::opts (s/? (s/map-of keyword? any? :conform-keys true)))
+(s/def ::children (s/* #(or (string? %)
+                             (s/coll-of ::tree))))
+(s/def ::tree
+  (s/cat :tag ::tag
+         :opts ::opts
+         :children ::children))
+(s/def ::tree-node-unresolved (s/keys :req-un [::tag ::opts ::children]))
 (s/def ::component (s/and fn? om/iquery?))
 (s/def ::factory fn?)
 (s/def ::depends? fn?)
 (s/def ::merge-query fn?)
 (s/def ::region? boolean?)
-(s/def ::ui-impl-ret
+(s/def ::ui-impl
   (s/keys :req-un [::component ::factory]
           :opt-un [::depends? ::merge-query ::region?]))
+(s/def ::tree-node-resolved (s/keys :req-un [::tag ::opts ::children ::ui-impl]))
 
 (defmulti ui-impl (fn [tag node] tag))
 
 (s/fdef ui-impl
-  :args (s/cat :tag keyword? :node vector?)
-  :ret ::ui-impl-ret)
+  :args (s/cat :tag ::tag
+               :node ::tree-node-unresolved)
+  :ret ::ui-impl)
 
 (defn not-implemented-component [tag]
   (ui
@@ -68,7 +81,6 @@
                              children)]
              {:tag tag
               :opts opts
-              :id (when (ui-component? tag) (:loam/id opts))
               :children (mapcat normalize-tree children')})))
        [raw-tree]))
 
@@ -85,42 +97,44 @@
            (if-let [tag (and (map? node)
                              (:tag node))]
              (if-not (ui-component? tag)
-               (assoc node :impl (dom-impl tag))
+               (assoc node :ui-impl (dom-impl tag))
                (try
-                 (assoc node :impl (s/assert ::ui-impl-ret (ui-impl tag node)))
+                 (assoc node :ui-impl (s/assert ::ui-impl (ui-impl tag node)))
                  (catch ExceptionInfo ex
                    (throw (update-ex-data ex assoc ::tag tag)))))
              node))
          %)
        tree))
 
-(defn collect-ui-infos [tree]
+(defn collect-ui-nodes [tree]
   (->> tree
        (mapcat (fn [node]
-                 (tree-seq #(not (get-in % [:impl :region?]))
+                 (tree-seq #(not (get-in % [:ui-impl :region?]))
                            :children
                            node)))
-       (filter :id)))
+       (filter #(when-let [tag (:tag %)]
+                  (ui-component? tag)))))
 
-(defn collect-query [ui-infos]
+(defn collect-query [nodes]
   (into []
-        (map (fn [{:keys [id tag opts impl]}]
-               (let [{:keys [component merge-query]} impl
+        (map (fn [{:keys [tag opts ui-impl]}]
+               (let [{:keys [component merge-query]} ui-impl
                      q (if component
                          (let [q* (om/get-query component)]
                            (if merge-query
                              (merge-query q* opts)
                              q*))
                          [:loam/id])]
-                 {[id '_] q})))
-        ui-infos))
+                 {[(:loam/id opts) '_] q})))
+        nodes))
 
 (defn rendering-tree [props tree]
   (map (fn [node]
          (if-not (map? node)
            node
-           (let [{:keys [tag id opts children impl]} node
-                 {:keys [factory]} impl]
+           (let [{:keys [tag opts children ui-impl]} node
+                 {:keys [factory]} ui-impl
+                 {:keys [loam/id]} opts]            
              (if id
                (factory #?(:clj (get props id)
                            :cljs (clj->js (get props id)))
@@ -136,8 +150,9 @@
                        (keep #(when (= :prop (:type %))
                                 (:key %)))
                        (:children ast))
-        dependent-reads (keep (fn [{:keys [id impl]}]
-                                (when-let [dependent? (:dependent? impl)]
+        dependent-reads (keep (fn [{:keys [opts ui-impl]}]
+                                (let [id (:loam/id opts)
+                                      dependent? (get ui-impl :dependent? (constantly false))]
                                   (when (dependent? tx-reads (get props id))
                                     id)))
                               components)]
@@ -148,9 +163,9 @@
                      dependent-reads))
         (om/ast->query))))
 
-(defn region [resolved-tree]
-  (let [child-uis (collect-ui-infos resolved-tree)
-        query (collect-query child-uis)
+(defn region* [resolved-tree]
+  (let [child-nodes (collect-ui-nodes resolved-tree)
+        query (collect-query child-nodes)
         region-component
         (ui
           static om/IQuery
@@ -158,7 +173,7 @@
             query)
           om/ITxIntercept
           (tx-intercept [this tx]
-            (include-dependent-keys tx (om/props this) child-uis))
+            (include-dependent-keys tx (om/props this) child-nodes))
           Object
           (render [this]
             (let [props (om/props this)]
@@ -168,7 +183,18 @@
      :region? true}))
 
 (defmethod ui-impl ::region [_ node]
-  (region (:children node)))
+  (region* (:children node)))
+
+(defn region [tree]
+  (->> tree
+       (normalize-tree)
+       (resolve-implementations)
+       (region*)))
+
+(s/fdef region
+  :args (s/cat :tree ::tree)
+  :ret ::ui-impl)
+
 
 (comment
   (def sample-1
@@ -207,13 +233,15 @@
 
   (->> sample-3 normalize-tree resolve-implementations)
   
-  (->> sample-3 normalize-tree resolve-implementations collect-ui-infos #_(map (juxt :tag :id)))
+  (->> sample-3 normalize-tree resolve-implementations collect-ui-nodes #_(map (juxt :tag :id)))
 
-  (->> sample-3 normalize-tree resolve-implementations region :component om/get-query)
+  (->> sample-3 normalize-tree resolve-implementations region* :component om/get-query)
 
   (->> sample-3 normalize-tree resolve-implementations (rendering-tree {}))
 
-  (-> sample-3 normalize-tree resolve-implementations region :factory (as-> f (dom/render-to-str (f))))
+  (-> sample-3 normalize-tree resolve-implementations region* :factory (as-> f (dom/render-to-str (f))))
+
+  (-> sample-3 region :factory (as-> f (dom/render-to-str (f))))
 
   (defmethod ui-impl :blueprint/auditor [tag _]
     (let [component (not-implemented-component tag)]
@@ -224,5 +252,20 @@
   (include-dependent-keys
    '[(foo! {:bar false}) ::my-editor]
    {}
-   (->> sample-1 normalize-tree resolve-implementations collect-ui-infos))
+   (->> sample-1 normalize-tree resolve-implementations collect-ui-nodes))
  )
+
+(comment
+  (s/conform ::tree [:div])
+  (= :clojure.spec/invalid
+     (s/conform ::tree [:dive]))
+  (s/conform ::tree [:div {:aaa "zzz" :bbb 1}])
+  (s/conform ::tree [:div [:span "spantext"]])
+  (s/conform ::tree [:div "divtext"])
+  (s/conform ::tree [:div {:id "zyx"} "divtext"])
+  (s/conform ::tree [:div {:id "zyx"}
+                     [:div {:id "xyz"} "inner"]
+                     [:span [:strong "strongtext"]]])
+  
+  )
+
