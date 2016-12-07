@@ -19,16 +19,20 @@
                          :children children})
       :cljs (js/React.createElement tag opts children))))
 
-(defn ui-component? [tag]
+(defn ui-tag? [tag]
   (boolean (namespace tag)))
 
 (defn dom-impl [tag]
   {:factory (partial create-element tag)})
 
+(defmulti region-ui-impl (fn [tag node] tag))
 
-(defmulti ui-impl (fn [tag node] tag))
+(defmulti ui-impl (fn [tag] tag))
 
-(defn not-implemented-component [tag]
+(defmethod region-ui-impl :default [tag _]
+  (ui-impl tag))
+
+(defn not-implemented-ui [tag]
   (ui
     static om/IQuery
     (query [this]
@@ -39,10 +43,10 @@
                           :data-tag-not-implemented (str tag)}
              (om/children this)))))
 
-(defmethod ui-impl :default [tag node]
-  (let [component (not-implemented-component tag)]
-    {:component component
-     :factory (om/factory component)}))
+(defmethod ui-impl :default [tag]
+  (let [om-ui (not-implemented-ui tag)]
+    {:om-ui om-ui
+     :factory (om/factory om-ui)}))
 
 (defn normalize-tree [raw-tree]
   (map (fn [node]
@@ -63,9 +67,9 @@
          (fn [node]
            (if-let [tag (and (map? node)
                              (:tag node))]
-             (if-not (ui-component? tag)
+             (if-not (ui-tag? tag)
                (assoc node :ui-impl (dom-impl tag))
-               (assoc node :ui-impl (ui-impl tag node)))
+               (assoc node :ui-impl (region-ui-impl tag node)))
              node))
          %)
        tree))
@@ -77,7 +81,7 @@
                            :children
                            node)))
        (filter #(when-let [tag (:tag %)]
-                  (ui-component? tag)))))
+                  (ui-tag? tag)))))
 
 (defn collect-query [nodes]
   (into []
@@ -147,3 +151,6 @@
      :region? true
      :tree resolved-tree
      :child-ui-nodes child-nodes}))
+
+(defmethod region-ui-impl :lattice/region [_ node]
+  (region* (:children node)))
