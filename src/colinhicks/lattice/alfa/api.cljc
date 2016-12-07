@@ -1,6 +1,6 @@
-(ns loam.alfa.api
+(ns colinhicks.lattice.alfa.api
   (:require [clojure.spec :as s]
-            [loam.alfa.impl :as l]
+            [colinhicks.lattice.alfa.impl :as l]
             [om.next :as om]))
 
 (s/def ::tag keyword?)
@@ -39,7 +39,7 @@
   :args (s/cat :tree ::tree)
   :ret ::ui-impl)
 
-(defmethod ui-impl :loam/region [_ node]
+(defmethod ui-impl :lattice/region [_ node]
   (l/region* (:children node)))
 
 (comment
@@ -47,34 +47,27 @@
     [:div
      [:section
       [:span {:className "label"} "Editor label"]
-      [:blueprint/editor {:loam/id ::my-editor
-                          :blueprint.editor/default-input [[:a :b] [:b :c]]
-                          :blueprint.evaluations/init :blueprint.editor/default-input}]
+      [:blueprint/editor {:lattice/id ::my-editor}]
       [:div {:className "arbitrary-nesting"}
-       [:blueprint/graph {:loam/id ::my-graph
-                          :loam/link {:editor [[:blueprint/evaluations ::my-editor]]}
-                          :loam/query-params {:editor ::my-editor}}
+       [:blueprint/graph {:lattice/id ::my-graph}
         [:strong "nested in component"]]]]
      [:footer {:className "static"}
-      [:blueprint/auditor {:loam/id ::my-auditor
-                           :loam/link {::my-editor [[:blueprint/evaluations ::my-editor]]}}]]])
+      [:blueprint/auditor {:lattice/id ::my-auditor}]]])
 
   (def sample-2
-    [:blueprint/auditor {:loam/id ::my-auditor
-                         :loam/merge-query {::my-editor [[:blueprint/evaluations ::my-editor]]}
-                         :loam/query-params {:audit [::my-editor]}}])
+    [:blueprint/auditor {:lattice/id ::my-auditor}])
 
   (def sample-3
     [:main
-     [:loam/region {:loam/id ::sample-1} sample-1]
-     [:loam/region {:loam/id ::sample-2} sample-2]])
+     [:lattice/region {:lattice/id ::sample-1} sample-1]
+     [:lattice/region {:lattice/id ::sample-2} sample-2]])
 
   
   (->> sample-3 region :tree (l/rendering-tree {}))
 
   (->> sample-3 region :component om/get-query)
 
-  (require '[om.dom :as dom])
+  (require '[om.dom :as dom])X
   
   (-> sample-3 region :factory (as-> f (dom/render-to-str (f))))
 

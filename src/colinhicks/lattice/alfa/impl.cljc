@@ -1,12 +1,11 @@
-(ns loam.alfa.impl
+(ns colinhicks.lattice.alfa.impl
   (:require
    [clojure.spec :as s]
    [clojure.string :as str]
    [clojure.walk :as walk]
    [om.dom :as dom]
    [om.next :as om #?(:clj  :refer
-                      :cljs :refer-macros) [defui ui invariant]])
-  #?(:clj (:import [clojure.lang ExceptionInfo])))
+                      :cljs :refer-macros) [defui ui invariant]]))
 
 
 ;; todo: expect om.dom/create-element in >alpha47
@@ -33,10 +32,10 @@
   (ui
     static om/IQuery
     (query [this]
-      [:loam/id])
+      [:lattice/id])
     Object
     (render [this]
-      (apply dom/div #js {:data-id (:loam/id (om/props this))
+      (apply dom/div #js {:data-id (:lattice/id (om/props this))
                           :data-tag-not-implemented (str tag)}
              (om/children this)))))
 
@@ -89,8 +88,8 @@
                            (if merge-query
                              (merge-query q* opts)
                              q*))
-                         [:loam/id])]
-                 {[(:loam/id opts) '_] q})))
+                         [:lattice/id])]
+                 {[(:lattice/id opts) '_] q})))
         nodes))
 
 (defn rendering-tree [props tree]
@@ -99,7 +98,7 @@
            node
            (let [{:keys [tag opts children ui-impl]} node
                  {:keys [factory]} ui-impl
-                 {:keys [loam/id]} opts]            
+                 {:keys [lattice/id]} opts]            
              (if id
                (factory #?(:clj (get props id)
                            :cljs (clj->js (get props id)))
@@ -116,7 +115,7 @@
                                 (:key %)))
                        (:children ast))
         dependent-reads (keep (fn [{:keys [opts ui-impl]}]
-                                (let [id (:loam/id opts)
+                                (let [id (:lattice/id opts)
                                       dependent? (get ui-impl :dependent? (constantly false))]
                                   (when (dependent? tx-reads (get props id))
                                     id)))
@@ -148,8 +147,3 @@
      :region? true
      :tree resolved-tree
      :child-ui-nodes child-nodes}))
-
-(defmethod ui-impl ::region [_ node]
-  (region* (:children node)))
-
-
