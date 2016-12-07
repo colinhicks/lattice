@@ -4,9 +4,20 @@
    [clojure.string :as str]
    [clojure.walk :as walk]
    [om.dom :as dom]
-   [om.next :as om #?(:clj  :refer
+   [om.next :as om #?(:clj :refer
                       :cljs :refer-macros) [defui ui invariant]]))
 
+(defmacro $-> [ns & forms]
+  "In forms' keywords, replace placeholder $ with the supplied ns.
+   ($-> foo.bar {:$/baz true}) ; => {:foo.bar/baz true}"
+  (cons 'do
+        (walk/postwalk
+         (fn [x]
+           (if (and (keyword? x)
+                    (str/starts-with? (str x) ":$/"))
+             (keyword (str ns "/" (name x)))
+             x))
+         forms)))
 
 ;; todo: expect om.dom/create-element in >alpha47
 (defn create-element
