@@ -10,8 +10,8 @@
 
 ($-> colinhicks.lattice.specs
   (s/def :$/om-ui (s/and fn? om/iquery?))
-  (s/def :$/ui-impl
-    (s/merge :$/dom-impl
+  (s/def :$/impl
+    (s/merge :$/base-impl
              (s/keys :req-un [:$/om-ui]
                      :opt-un [:$/depends? :$/merge-query]))))
 
@@ -46,8 +46,8 @@
 
 (defn collect-query [nodes]
   (into []
-        (map (fn [{:keys [tag opts ui-impl]}]
-               (let [{:keys [om-ui merge-query]} ui-impl
+        (map (fn [{:keys [tag opts impl]}]
+               (let [{:keys [om-ui merge-query]} impl
                      q (if om-ui
                          (let [q* (om/get-query om-ui)]
                            (if merge-query
@@ -61,8 +61,8 @@
   (map (fn [node]
          (if-not (map? node)
            node
-           (let [{:keys [tag opts children ui-impl]} node
-                 {:keys [factory]} ui-impl
+           (let [{:keys [tag opts children impl]} node
+                 {:keys [factory]} impl
                  {:keys [lattice/id]} opts]            
              (if id
                (factory #?(:clj (get props id)
@@ -79,9 +79,9 @@
                        (keep #(when (= :prop (:type %))
                                 (:key %)))
                        (:children ast))
-        dependent-reads (keep (fn [{:keys [opts ui-impl]}]
+        dependent-reads (keep (fn [{:keys [opts impl]}]
                                 (let [id (:lattice/id opts)
-                                      dependent? (get ui-impl :dependent? (constantly false))]
+                                      dependent? (get impl :dependent? (constantly false))]
                                   (when (dependent? tx-reads (get props id))
                                     id)))
                               components)]
@@ -149,9 +149,9 @@
 
   (->> sample-3 api/region :children (rendering-tree {}))
 
-  (->> sample-3 api/region :ui-impl :om-ui om/get-query)
+  (->> sample-3 api/region :impl :om-ui om/get-query)
   
-  (-> sample-3 api/region :ui-impl :factory (as-> f (dom/render-to-str (f))))
+  (-> sample-3 api/region :impl :factory (as-> f (dom/render-to-str (f))))
 
   (defmethod extensions/ui-impl :blueprint/auditor [tag]
     (let [om-ui (not-implemented-ui tag)]
@@ -162,5 +162,5 @@
   (include-dependent-keys
    '[(foo! {:bar false}) ::my-editor]
    {}
-   (->> sample-1 api/region :ui-impl :child-ui-nodes))
+   (->> sample-1 api/region :impl :child-ui-nodes))
  )

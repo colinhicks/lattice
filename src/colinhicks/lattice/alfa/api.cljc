@@ -19,8 +19,8 @@
 
 (defn region-db [region]
   (->> region
-       (tree-seq #(-> % :ui-impl :region?)
-                 #(-> % :ui-impl :child-ui-nodes))
+       (tree-seq #(-> % :impl :region?)
+                 #(-> % :impl :child-ui-nodes))
        (into {}
              (keep (fn [{:keys [opts]}]
                      (when-let [id (:lattice/id opts)]
@@ -33,7 +33,7 @@
     (s/keys :req-un [:$/ui-id]))
 
   (s/def :$/region-ui-impl
-    (s/merge :$/ui-impl
+    (s/merge :$/impl
              (s/keys :req-un [:$/region? :$/child-ui-nodes])))
 
   (s/fdef region

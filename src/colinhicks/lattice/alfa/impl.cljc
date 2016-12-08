@@ -31,16 +31,15 @@
   (s/def :$/depends? fn?)
   (s/def :$/merge-query fn?)
   (s/def :$/region? boolean?)
-  (s/def :$/dom-impl (s/keys :req-un [:$/factory]))
-  (s/def :$/ui-impl (s/merge :$/dom-impl))
-  (s/def :$/tree-node-resolved (s/keys :req-un [:$/tag
-                                                :$/opts
-                                                :$/children
-                                                :$/ui-impl]))
+  (s/def :$/base-impl (s/keys :req-un [:$/factory]))
+  (s/def :$/impl (s/merge :$/dom-impl))
+  (s/def :$/tree-node-resolved
+    (s/merge :$/tree-node-unresolved
+             (s/keys :req-un [:$/impl])))
 
   (s/fdef extensions/ui-impl
     :args (s/cat :tag :$/tag)
-    :ret :$/ui-impl))
+    :ret :$/impl))
 
 (defn ui-tag? [tag]
   (boolean (namespace tag)))
@@ -68,8 +67,8 @@
            (if-let [tag (and (map? node)
                              (:tag node))]
              (if-not (ui-tag? tag)
-               (assoc node :ui-impl (extensions/dom-impl tag))
-               (assoc node :ui-impl (extensions/region-ui-impl tag node)))
+               (assoc node :impl (extensions/dom-impl tag))
+               (assoc node :impl (extensions/region-ui-impl tag node)))
              node))
          %)
        tree))
@@ -77,7 +76,7 @@
 (defn collect-ui-nodes [tree]
   (->> tree
        (mapcat (fn [node]
-                 (tree-seq #(not (get-in % [:ui-impl :region?]))
+                 (tree-seq #(not (get-in % [:impl :region?]))
                            :children
                            node)))
        (filter #(when-let [tag (:tag %)]
