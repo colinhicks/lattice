@@ -6,12 +6,13 @@
 
 
 (defn region [tree]
-  (-> tree
-      (l/normalize-tree)
-      (l/resolve-implementations)
-      (as-> resolved-tree
-          (extensions/region-ui-impl :lattice/region
-                                     {:children resolved-tree}))))
+  (->> (if-not (= :lattice/region (first tree))
+         [:lattice/region tree]
+         tree)
+       (l/normalize-tree)
+       (l/resolve-implementations)
+       (first)
+       (extensions/region-ui-impl :lattice/region)))
 
 (s/fdef region
   :args (s/cat :tree :colinhicks.lattice.specs/tree)
