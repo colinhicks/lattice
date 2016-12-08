@@ -1,8 +1,8 @@
-(ns colinhicks.lattice.alfa.impl
+(ns specroll.lattice.alfa.impl
   (:require [clojure.spec :as s]
             [clojure.string :as str]
             [clojure.walk :as walk]
-            [colinhicks.lattice.alfa.extensions :as extensions]))
+            [specroll.lattice.alfa.extensions :as extensions]))
 
 
 (defmacro $-> [ns & forms]
@@ -17,7 +17,7 @@
              x))
          forms)))
 
-($-> colinhicks.lattice.specs
+($-> specroll.lattice.specs
   (s/def :$/tag keyword?)
   (s/def :$/opts (s/? (s/map-of keyword? any? :conform-keys true)))
   (s/def :$/children (s/* #(or (string? %)

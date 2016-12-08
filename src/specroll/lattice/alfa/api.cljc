@@ -1,8 +1,8 @@
-(ns colinhicks.lattice.alfa.api
+(ns specroll.lattice.alfa.api
   (:require [clojure.spec :as s]
-            [colinhicks.lattice.alfa.extensions :as extensions]
-            [colinhicks.lattice.alfa.impl :as l #?(:clj :refer
-                                                   :cljs :refer-macros) [$->]]))
+            [specroll.lattice.alfa.extensions :as extensions]
+            [specroll.lattice.alfa.impl :as l #?(:clj :refer
+                                                 :cljs :refer-macros) [$->]]))
 
 
 (defn region
@@ -26,7 +26,7 @@
                      (when-let [id (:lattice/id opts)]
                        [id opts]))))))
 
-($-> colinhicks.lattice.specs
+($-> specroll.lattice.specs
   (s/def :$/ui-id #(and (keyword? %) (namespace %)))
 
   (s/def :$/ui-opts

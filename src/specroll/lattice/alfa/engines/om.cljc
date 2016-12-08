@@ -1,14 +1,14 @@
-(ns colinhicks.lattice.alfa.engines.om
+(ns specroll.lattice.alfa.engines.om
   (:require [clojure.spec :as s]
             [clojure.pprint :as pprint]
-            [colinhicks.lattice.alfa.extensions :as extensions]
-            [colinhicks.lattice.alfa.impl :as l #?(:clj :refer
+            [specroll.lattice.alfa.extensions :as extensions]
+            [specroll.lattice.alfa.impl :as l #?(:clj :refer
                                                    :cljs :refer-macros) [$->]]
             [om.dom :as dom]
             [om.next :as om #?(:clj :refer
                                :cljs :refer-macros) [ui]]))
 
-($-> colinhicks.lattice.specs
+($-> specroll.lattice.specs
   (s/def :$/om-ui (s/and fn? om/iquery?))
   (s/def :$/impl
     (s/merge :$/base-impl
@@ -136,7 +136,7 @@
      [:lattice/region {:lattice/id ::sample-1} sample-1]
      [:lattice/region {:lattice/id ::sample-2} sample-2]])
 
-  (require '[colinhicks.lattice.alfa.api :as api])
+  (require '[specroll.lattice.alfa.api :as api])
 
   (->> sample-3 l/normalize-tree l/resolve-implementations)
   

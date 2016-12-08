@@ -1,4 +1,4 @@
-(ns colinhicks.lattice.alfa.extensions)
+(ns specroll.lattice.alfa.extensions)
 
 
 (defmulti dom-impl (fn [tag] tag))
