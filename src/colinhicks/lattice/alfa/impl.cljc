@@ -38,10 +38,6 @@
                                                 :$/children
                                                 :$/ui-impl]))
 
-  (s/def :$/region-ui-impl
-    (s/merge :$/ui-impl
-             (s/keys :req-un [:$/region? :$/child-ui-nodes :$/tree])))
-
   (s/fdef extensions/ui-impl
     :args (s/cat :tag :$/tag)
     :ret :$/ui-impl))

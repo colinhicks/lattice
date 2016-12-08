@@ -110,7 +110,6 @@
     {:om-ui region-component
      :factory (om/factory region-component)
      :region? true
-     :tree resolved-tree
      :child-ui-nodes child-nodes}))
 
 (defmethod extensions/region-ui-impl :lattice/region [_ node]
@@ -139,13 +138,20 @@
 
   (require '[colinhicks.lattice.alfa.api :as api])
 
+  (->> sample-3 l/normalize-tree l/resolve-implementations)
+  
   (->> sample-3 api/region)
   
-  (->> sample-3 api/region :tree (rendering-tree {}))
+  (->> sample-3
+       (api/region {:lattice/id ::sample-3
+                    :foo true})
+       api/region-db)
 
-  (->> sample-3 api/region :om-ui om/get-query)
+  (->> sample-3 api/region :children (rendering-tree {}))
+
+  (->> sample-3 api/region :ui-impl :om-ui om/get-query)
   
-  (-> sample-3 api/region :factory (as-> f (dom/render-to-str (f))))
+  (-> sample-3 api/region :ui-impl :factory (as-> f (dom/render-to-str (f))))
 
   (defmethod extensions/ui-impl :blueprint/auditor [tag]
     (let [om-ui (not-implemented-ui tag)]
@@ -156,5 +162,5 @@
   (include-dependent-keys
    '[(foo! {:bar false}) ::my-editor]
    {}
-   (->> sample-1 api/region :child-ui-nodes))
+   (->> sample-1 api/region :ui-impl :child-ui-nodes))
  )
