@@ -12,10 +12,9 @@
          [:lattice/region tree]
          tree)
        (l/normalize-tree)
-       (as-> t (into [] t))
-       (update-in [0 :opts] merge opts)
        (l/resolve-implementations)
-       (first))))
+       (first)
+       (update :opts merge opts))))
 
 (defn region-db [region]
   (->> region
