@@ -21,7 +21,7 @@
   (s/def :$/tag keyword?)
   (s/def :$/opts (s/? (s/map-of keyword? any? :conform-keys true)))
   (s/def :$/children (s/* #(or (string? %)
-                               (s/coll-of :$/tree))))
+                               (s/coll-of :$/children))))
   (s/def :$/tree
     (s/cat :tag :$/tag
            :opts :$/opts
@@ -53,7 +53,8 @@
            node
            (let [[tag maybe-opts & children] node
                  opts (when (map? maybe-opts) maybe-opts)
-                 children' (if-not opts
+                 children' (if (and (not opts)
+                                    (seq maybe-opts))
                              (into [maybe-opts] children)
                              children)]
              {:tag tag

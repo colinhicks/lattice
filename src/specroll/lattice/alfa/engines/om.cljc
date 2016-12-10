@@ -45,7 +45,7 @@
      :factory (om/factory om-ui)}))
 
 (defn collect-query [nodes]
-  (into []
+  (into [:lattice/id]
         (map (fn [{:keys [tag opts impl]}]
                (let [{:keys [om-ui merge-query]} impl
                      q (if om-ui
@@ -97,6 +97,9 @@
         query (collect-query child-nodes)
         region-component
         (ui
+          static om/Ident
+          (ident [this props]
+            [(:lattice/id props) '_])
           static om/IQuery
           (query [this]
             query)
@@ -114,53 +117,3 @@
 
 (defmethod extensions/region-ui-impl :lattice/region [_ node]
   (region* (:children node)))
-
-
-(comment
-  (def sample-1
-    [:div
-     [:section
-      [:span {:className "label"} "Editor label"]
-      [:blueprint/editor {:lattice/id ::my-editor}]
-      [:div {:className "arbitrary-nesting"}
-       [:blueprint/graph {:lattice/id ::my-graph}
-        [:strong "nested in component"]]]]
-     [:footer {:className "static"}
-      [:blueprint/auditor {:lattice/id ::my-auditor}]]])
-
-  (def sample-2
-    [:blueprint/auditor {:lattice/id ::my-auditor}])
-
-  (def sample-3
-    [:main
-     [:lattice/region {:lattice/id ::sample-1} sample-1]
-     [:lattice/region {:lattice/id ::sample-2} sample-2]])
-
-  (require '[specroll.lattice.alfa.api :as api])
-
-  (->> sample-3 l/normalize-tree l/resolve-implementations)
-  
-  (->> sample-3 api/region)
-  
-  (->> sample-3
-       (api/region {:lattice/id ::sample-3
-                    :foo true})
-       api/region-db)
-
-  (->> sample-3 api/region :children (rendering-tree {}))
-
-  (->> sample-3 api/region :impl :om-ui om/get-query)
-  
-  (-> sample-3 api/region :impl :factory (as-> f (dom/render-to-str (f))))
-
-  (defmethod extensions/ui-impl :blueprint/auditor [tag]
-    (let [om-ui (not-implemented-ui tag)]
-      {:dependent? (fn [ks props] (some ks [::my-editor]))
-       :om-ui om-ui
-       :factory (om/factory om-ui)}))
-
-  (include-dependent-keys
-   '[(foo! {:bar false}) ::my-editor]
-   {}
-   (->> sample-1 api/region :impl :child-ui-nodes))
- )

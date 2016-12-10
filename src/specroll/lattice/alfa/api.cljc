@@ -1,5 +1,6 @@
 (ns specroll.lattice.alfa.api
   (:require [clojure.spec :as s]
+            [clojure.spec.gen :as gen]
             [specroll.lattice.alfa.extensions :as extensions]
             [specroll.lattice.alfa.impl :as l #?(:clj :refer
                                                  :cljs :refer-macros) [$->]]))
@@ -26,18 +27,25 @@
                        [id opts]))))))
 
 ($-> specroll.lattice.specs
-  (s/def :$/ui-id #(and (keyword? %) (namespace %)))
+  (s/def :$/ui-id
+    (s/with-gen #(and (keyword? %) (namespace %))
+      (fn []
+        (gen/fmap #(keyword "test.ui-id" %)
+                  (gen/such-that #(not= % "")
+                                 (gen/string-alphanumeric))))))
+
+  (s/def :lattice/id :$/ui-id)
 
   (s/def :$/ui-opts
-    (s/keys :req-un [:$/ui-id]))
+    (s/keys :req [:lattice/id]))
 
   (s/def :$/region-ui-impl
     (s/merge :$/impl
              (s/keys :req-un [:$/region? :$/child-ui-nodes])))
 
   (s/fdef region
-    :args (s/cat :opts :$/ui-opts
-                 :tree :$/tree)
+    :args (s/cat :opts (s/? :$/ui-opts)
+                 :tree :$/children)
     :ret :$/region-ui-impl)
 
   (s/fdef region-db
