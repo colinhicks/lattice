@@ -1,21 +1,19 @@
 (ns specroll.lattice.alfa.api
   (:require [clojure.spec :as s]
-            [clojure.spec.gen :as gen]
+            [#?(:clj clojure.spec.gen
+                :cljs cljs.spec.impl.gen) :as gen]
             [specroll.lattice.alfa.extensions :as extensions]
-            [specroll.lattice.alfa.impl :as l #?(:clj :refer
-                                                 :cljs :refer-macros) [$->]]))
+            [specroll.lattice.alfa.impl :as l :refer [$->]]))
 
 
-(defn region
-  ([tree] (region {} tree))
-  ([opts tree]
-   (-> (if-not (= :lattice/region (first tree))
-         [:lattice/region tree]
-         tree)
-       (l/normalize-tree)
-       (l/resolve-implementations)
-       (first)
-       (update :opts merge opts))))
+(defn region [opts tree]
+  (-> (if-not (= :lattice/region (first tree))
+        [:lattice/region tree]
+        tree)
+      (l/normalize-tree)
+      (l/resolve-implementations)
+      (first)
+      (update :opts merge opts)))
 
 (defn region-db [region]
   (->> region
@@ -44,8 +42,8 @@
              (s/keys :req-un [:$/region? :$/child-ui-nodes])))
 
   (s/fdef region
-    :args (s/cat :opts (s/? :$/ui-opts)
-                 :tree :$/children)
+    :args (s/cat :opts (s/nilable :$/ui-opts) :tree vector?) 
+    #_(s/cat :opts (s/nilable :$/ui-opts) :tree :$/tree) ;; ugh, why??
     :ret :$/region-ui-impl)
 
   (s/fdef region-db

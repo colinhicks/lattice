@@ -9,8 +9,7 @@
             [specroll.lattice.alfa.api :as api]
             [specroll.lattice.alfa.extensions :as extensions]
             [specroll.lattice.alfa.impl :as impl :refer [$->]]
-            [specroll.lattice.alfa.engines.om])
-  #?(:clj (:import [clojure.lang ExceptionInfo])))
+            [specroll.lattice.alfa.engines.om]))
 
 
 (def dom-tag-gen
@@ -34,23 +33,21 @@
     (gen/tuple dom-tag-gen))))
 
 ;; todo: figure out why this is generating invalid arities
-#_(stest/check `api/region {:gen {:specroll.lattice.specs/children gen-tree}})
+#_(first (stest/check `api/region {:gen {:specroll.lattice.specs/tree gen-tree}}))
 
 (stest/instrument `api/region `api/region-db)
 
 (deftest region-test
   (is
-   (api/region (gen/generate (gen-tree))))
+   (api/region nil (gen/generate (gen-tree))))
 
   (is
    (api/region {:lattice/id ::x} (gen/generate (gen-tree)))))
 
 (deftest region-db-test
-  (let [region (api/region (gen/generate (gen-tree)))]
+  (let [region (api/region nil (gen/generate (gen-tree)))]
     (is
      (api/region-db region))))
-
-
 
 
 (comment

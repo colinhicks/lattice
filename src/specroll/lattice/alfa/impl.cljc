@@ -20,12 +20,14 @@
 ($-> specroll.lattice.specs
   (s/def :$/tag keyword?)
   (s/def :$/opts (s/? (s/map-of keyword? any? :conform-keys true)))
-  (s/def :$/children (s/* #(or (string? %)
-                               (s/coll-of :$/children))))
+  (s/def :$/tree-child
+    (s/or :str string?
+          :ctree :$/tree))
   (s/def :$/tree
     (s/cat :tag :$/tag
-           :opts :$/opts
-           :children :$/children))
+           :opts (s/? :$/opts)
+           :children (s/* :$/tree-child)))
+  (s/def :$/children :$/tree)
   (s/def :$/tree-node-unresolved (s/keys :req-un [:$/tag :$/opts :$/children]))
   (s/def :$/factory fn?)
   (s/def :$/depends? fn?)

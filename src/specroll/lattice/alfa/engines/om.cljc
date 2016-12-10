@@ -2,11 +2,9 @@
   (:require [clojure.spec :as s]
             [clojure.pprint :as pprint]
             [specroll.lattice.alfa.extensions :as extensions]
-            [specroll.lattice.alfa.impl :as l #?(:clj :refer
-                                                   :cljs :refer-macros) [$->]]
+            [specroll.lattice.alfa.impl :as l :refer [$->]]
             [om.dom :as dom]
-            [om.next :as om #?(:clj :refer
-                               :cljs :refer-macros) [ui]]))
+            [om.next :as om :refer [ui]]))
 
 ($-> specroll.lattice.specs
   (s/def :$/om-ui (s/and fn? om/iquery?))
