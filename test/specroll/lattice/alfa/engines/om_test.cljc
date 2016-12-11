@@ -32,22 +32,12 @@
                    inner)]))
     (gen/tuple dom-tag-gen))))
 
-;; todo: figure out why this is generating invalid arities
-#_(first (stest/check `api/region {:gen {:specroll.lattice.specs/tree gen-tree}}))
-
-(stest/instrument `api/region `api/region-db)
-
-(deftest region-test
-  (is
-   (api/region nil (gen/generate (gen-tree))))
-
-  (is
-   (api/region {:lattice/id ::x} (gen/generate (gen-tree)))))
-
-(deftest region-db-test
-  (let [region (api/region nil (gen/generate (gen-tree)))]
-    (is
-     (api/region-db region))))
+(deftest region-gen-test
+  (let [{:keys [total check-passed]}
+        (stest/summarize-results
+         (stest/check `api/region
+                      {:gen {:specroll.lattice.specs/tree gen-tree}}))]
+    (is (= total check-passed))))
 
 
 (comment

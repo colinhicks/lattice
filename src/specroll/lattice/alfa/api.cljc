@@ -6,14 +6,16 @@
             [specroll.lattice.alfa.impl :as l :refer [$->]]))
 
 
-(defn region [opts tree]
-  (-> (if-not (= :lattice/region (first tree))
-        [:lattice/region tree]
-        tree)
-      (l/normalize-tree)
-      (l/resolve-implementations)
-      (first)
-      (update :opts merge opts)))
+(defn region
+  ([tree] (region {} tree))
+  ([opts tree]
+   (-> (if-not (= :lattice/region (first tree))
+         [:lattice/region tree]
+         tree)
+       (l/normalize-tree)
+       (l/resolve-implementations)
+       (first)
+       (update :opts merge opts))))
 
 (defn region-db [region]
   (->> region
@@ -37,15 +39,13 @@
   (s/def :$/ui-opts
     (s/keys :req [:lattice/id]))
 
-  (s/def :$/region-ui-impl
-    (s/merge :$/impl
-             (s/keys :req-un [:$/region? :$/child-ui-nodes])))
+  (s/def :$/region :$/tree-node-resolved)
 
   (s/fdef region
-    :args (s/cat :opts (s/nilable :$/ui-opts) :tree vector?) 
-    #_(s/cat :opts (s/nilable :$/ui-opts) :tree :$/tree) ;; ugh, why??
-    :ret :$/region-ui-impl)
+    :args (s/cat :opts (s/? (s/nilable (s/spec :$/ui-opts)))
+                 :tree (s/spec :$/tree))
+    :ret :$/region)
 
   (s/fdef region-db
-    :args (s/cat :region :$/region-ui-impl)
+    :args (s/cat :region :$/region)
     :ret (s/every-kv :$/ui-id :$/ui-opts)))
