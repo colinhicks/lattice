@@ -17,33 +17,6 @@
              x))
          forms)))
 
-($-> specroll.lattice.specs
-  (s/def :$/tag keyword?)
-  (s/def :$/opts (s/nilable (s/map-of keyword? any? :conform-keys true)))
-  (s/def :$/tree-child
-    (s/or :str string?
-          :ctree :$/tree))
-  (s/def :$/tree
-    (s/cat :tag :$/tag
-           :opts (s/? (s/spec :$/opts))
-           :children (s/* (s/spec :$/tree-child))))
-  (s/def :$/children (s/coll-of (s/or :node :$/tree-node-unresolved
-                                      :str string?)))
-  (s/def :$/tree-node-unresolved (s/keys :req-un [:$/tag :$/opts :$/children]))
-  (s/def :$/factory fn?)
-  (s/def :$/depends? fn?)
-  (s/def :$/merge-query fn?)
-  (s/def :$/region? boolean?)
-  (s/def :$/base-impl (s/keys :req-un [:$/factory]))
-  (s/def :$/impl (s/merge :$/base-impl))
-  (s/def :$/tree-node-resolved
-    (s/merge :$/tree-node-unresolved
-             (s/keys :req-un [:$/impl])))
-
-  (s/fdef extensions/ui-impl
-    :args (s/cat :tag :$/tag)
-    :ret :$/impl))
-
 (defn ui-tag? [tag]
   (boolean (namespace tag)))
 

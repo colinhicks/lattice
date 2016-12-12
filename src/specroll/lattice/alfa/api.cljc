@@ -27,10 +27,50 @@
                        [id opts]))))))
 
 ($-> specroll.lattice.specs
+  (s/def :$/tag keyword?)
+
+  (s/def :$/opts (s/nilable (s/map-of keyword? any? :conform-keys true)))
+
+  (s/def :$/tree
+    (s/cat :tag :$/tag
+           :opts (s/? (s/spec :$/opts))
+           :children (s/* (s/spec (s/or :str string?
+                                        :ctree :$/tree)))))
+
+  (s/def :$/children (s/coll-of (s/or :node :$/node-unresolved
+                                      :str string?)))
+
+  (s/def :$/factory fn?)
+
+  (s/def :$/base-impl (s/keys :req-un [:$/factory]))
+
+  (s/def :$/impl (s/merge :$/base-impl))
+
+  (s/def :$/node-unresolved (s/keys :req-un [:$/tag :$/opts :$/children]))
+
+  (s/def :$/node-resolved
+    (s/merge :$/node-unresolved
+             (s/keys :req-un [:$/impl])))
+
+  (s/fdef extensions/ui-impl
+    :args (s/cat :tag :$/tag)
+    :ret :$/impl)
+
+  (s/def :$/region? boolean?)
+
+  (s/def :$/region-ui-impl
+    (s/merge :$/impl
+             (s/keys :req-un [:$/region?])))
+
+  (s/fdef extensions/region-ui-impl
+    :args (s/cat :tag :$/tag
+                 :node (s/spec :$/node-unresolved))
+    :ret :$/region-ui-impl)
+
   (s/def :$/ui-id
     (s/with-gen #(and (keyword? %) (namespace %))
       (fn []
-        (gen/fmap #(keyword "test.ui-id" %)
+        (gen/fmap #(keyword "gen.lattice.ui-id" %)
                   (gen/such-that #(not= % "")
                                  (gen/string-alphanumeric))))))
 
@@ -39,7 +79,7 @@
   (s/def :$/ui-opts
     (s/keys :req [:lattice/id]))
 
-  (s/def :$/region :$/tree-node-resolved)
+  (s/def :$/region :$/node-resolved)
 
   (s/fdef region
     :args (s/cat :opts (s/? (s/nilable (s/spec :$/ui-opts)))

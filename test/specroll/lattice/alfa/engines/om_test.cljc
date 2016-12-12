@@ -12,6 +12,8 @@
             [specroll.lattice.alfa.engines.om]))
 
 
+(require '[clojure.test.check]) ; clojure-emacs/cider#1841
+
 (def dom-tag-gen
   (s/gen (set (map keyword dom/tags))))
 
@@ -25,7 +27,7 @@
         (gen/tuple dom-tag-gen (gen/one-of [inner (gen/string-ascii)]))
         (gen/tuple (gen/elements (into [:lattice/region] ui-tags))
                    (gen/fmap (fn [k]
-                               {:lattice/id (keyword "test" k)})
+                               {:lattice/id (keyword "test.gen.lattice.ui-id" k)})
                              (gen/such-that
                               #(not= % "")
                               (gen/string-alphanumeric)))

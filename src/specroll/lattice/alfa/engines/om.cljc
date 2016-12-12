@@ -6,12 +6,24 @@
             [om.dom :as dom]
             [om.next :as om :refer [ui]]))
 
+
 ($-> specroll.lattice.specs
   (s/def :$/om-ui (s/and fn? om/iquery?))
+
+  (s/def :$/depends? fn?)
+
+  (s/def :$/merge-query fn?)
+
+  ;; shadows definition in lattice.alfa.api
   (s/def :$/impl
     (s/merge :$/base-impl
              (s/keys :req-un [:$/om-ui]
-                     :opt-un [:$/depends? :$/merge-query]))))
+                     :opt-un [:$/depends? :$/merge-query])))
+
+  ;; shadows definition in lattice.alfa.api
+  (s/def :$/region-ui-impl
+    (s/merge :$/impl
+             (s/keys :req-un [:$/region?]))))
 
 (defn create-element
   ([tag]
