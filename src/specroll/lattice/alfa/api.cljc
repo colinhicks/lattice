@@ -2,8 +2,9 @@
   (:require [clojure.spec :as s]
             [#?(:clj clojure.spec.gen
                 :cljs cljs.spec.impl.gen) :as gen]
-            [specroll.lattice.alfa.extensions :as extensions]
-            [specroll.lattice.alfa.impl :as l :refer [$->]]))
+            [specroll.lattice.specs :as $]
+            [specroll.lattice.alfa.impl :as l]
+            [specroll.lattice.alfa.extensions :as extensions]))
 
 
 (defn region
@@ -26,66 +27,67 @@
                      (when-let [id (:lattice/id opts)]
                        [id opts]))))))
 
-($-> specroll.lattice.specs
-  (s/def :$/tag keyword?)
 
-  (s/def :$/opts (s/nilable (s/map-of keyword? any? :conform-keys true)))
+(s/def ::$/tag keyword?)
 
-  (s/def :$/tree
-    (s/cat :tag :$/tag
-           :opts (s/? (s/spec :$/opts))
-           :children (s/* (s/spec (s/or :str string?
-                                        :ctree :$/tree)))))
+(s/def ::$/opts (s/nilable (s/map-of keyword? any? :conform-keys true)))
 
-  (s/def :$/children (s/coll-of (s/or :node :$/node-unresolved
-                                      :str string?)))
+(s/def ::$/tree
+  (s/cat :tag ::$/tag
+         :opts (s/? (s/spec ::$/opts))
+         :children (s/* (s/spec (s/or :str string?
+                                      :ctree ::$/tree)))))
 
-  (s/def :$/factory fn?)
+(s/def ::$/children (s/coll-of (s/or :node ::$/node-unresolved
+                                    :str string?)))
 
-  (s/def :$/base-impl (s/keys :req-un [:$/factory]))
+(s/def ::$/factory fn?)
 
-  (s/def :$/impl (s/merge :$/base-impl))
+(s/def ::$/base-impl (s/keys :req-un [::$/factory]))
 
-  (s/def :$/node-unresolved (s/keys :req-un [:$/tag :$/opts :$/children]))
+(s/def ::$/impl (s/merge ::$/base-impl))
 
-  (s/def :$/node-resolved
-    (s/merge :$/node-unresolved
-             (s/keys :req-un [:$/impl])))
+(s/def ::$/node-unresolved (s/keys :req-un [::$/tag ::$/opts ::$/children]))
 
-  (s/fdef extensions/ui-impl
-    :args (s/cat :tag :$/tag)
-    :ret :$/impl)
+(s/def ::$/node-resolved
+  (s/merge ::$/node-unresolved
+           (s/keys :req-un [::$/impl])))
 
-  (s/def :$/region? boolean?)
+(s/fdef extensions/ui-impl
+  :args (s/cat :tag ::$/tag)
+  :ret ::$/impl)
 
-  (s/def :$/region-ui-impl
-    (s/merge :$/impl
-             (s/keys :req-un [:$/region?])))
+(s/def ::$/region? boolean?)
 
-  (s/fdef extensions/region-ui-impl
-    :args (s/cat :tag :$/tag
-                 :node (s/spec :$/node-unresolved))
-    :ret :$/region-ui-impl)
+(s/def ::$/region-ui-impl
+  (s/merge ::$/impl
+           (s/keys :req-un [::$/region?])))
 
-  (s/def :$/ui-id
-    (s/with-gen #(and (keyword? %) (namespace %))
-      (fn []
-        (gen/fmap #(keyword "gen.lattice.ui-id" %)
-                  (gen/such-that #(not= % "")
-                                 (gen/string-alphanumeric))))))
+(s/fdef extensions/region-ui-impl
+  :args (s/cat :tag ::$/tag
+               :node (s/spec ::$/node-unresolved))
+  :ret ::$/region-ui-impl)
 
-  (s/def :lattice/id :$/ui-id)
+(s/def ::$/ui-id
+  (s/with-gen #(and (keyword? %) (namespace %))
+    (fn []
+      (gen/fmap #(keyword "gen.lattice.ui-id" %)
+                (gen/such-that #(not= % "")
+                               (gen/string-alphanumeric))))))
 
-  (s/def :$/ui-opts
-    (s/keys :req [:lattice/id]))
+(s/def :lattice/id ::$/ui-id)
 
-  (s/def :$/region :$/node-resolved)
+(s/def ::$/ui-opts
+  (s/keys :req [:lattice/id]))
 
-  (s/fdef region
-    :args (s/cat :opts (s/? (s/nilable (s/spec :$/ui-opts)))
-                 :tree (s/spec :$/tree))
-    :ret :$/region)
+(s/def ::$/region ::$/node-resolved)
 
-  (s/fdef region-db
-    :args (s/cat :region :$/region)
-    :ret (s/every-kv :$/ui-id :$/ui-opts)))
+(s/fdef region
+  :args (s/cat :opts (s/? (s/nilable (s/spec ::$/ui-opts)))
+               :tree (s/spec ::$/tree))
+  :ret ::$/region)
+
+(s/fdef region-db
+  :args (s/cat :region ::$/region)
+  :ret (s/every-kv ::$/ui-id ::$/ui-opts))
+

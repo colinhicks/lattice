@@ -8,7 +8,7 @@
             [om.dom :as dom]
             [specroll.lattice.alfa.api :as api]
             [specroll.lattice.alfa.extensions :as extensions]
-            [specroll.lattice.alfa.impl :as impl :refer [$->]]
+            [specroll.lattice.alfa.impl :as l]
             [specroll.lattice.alfa.engines.om]))
 
 

@@ -5,18 +5,6 @@
             [specroll.lattice.alfa.extensions :as extensions]))
 
 
-(defmacro $-> [ns & forms]
-  "In forms' keywords, replace placeholder $ with the supplied ns.
-   ($-> foo.bar {:$/baz true}) ; => {:foo.bar/baz true}"
-  (cons 'do
-        (walk/postwalk
-         (fn [x]
-           (if (and (keyword? x)
-                    (str/starts-with? (str x) ":$/"))
-             (keyword (str ns "/" (name x)))
-             x))
-         forms)))
-
 (defn ui-tag? [tag]
   (boolean (namespace tag)))
 

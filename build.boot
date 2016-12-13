@@ -18,7 +18,7 @@
 (require '[pandeiro.boot-http :refer [serve]])
 
 (task-options!
- pom {:project 'specroll/lattice
+ pom {:project 'com.specroll/lattice
       :version "0.0.0-alfa"
       :license {"name" "Eclipse Public License"
                 "url" "http://www.eclipse.org/legal/epl-v10.html"}})

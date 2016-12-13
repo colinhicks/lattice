@@ -1,29 +1,27 @@
 (ns specroll.lattice.alfa.engines.om
   (:require [clojure.spec :as s]
             [clojure.pprint :as pprint]
+            [specroll.lattice.specs :as $]
+            [specroll.lattice.alfa.impl :as l]
             [specroll.lattice.alfa.extensions :as extensions]
-            [specroll.lattice.alfa.impl :as l :refer [$->]]
             [om.dom :as dom]
             [om.next :as om :refer [ui]]))
 
 
-($-> specroll.lattice.specs
-  (s/def :$/om-ui (s/and fn? om/iquery?))
+(s/def ::$/om-ui (s/and fn? om/iquery?))
 
-  (s/def :$/depends? fn?)
+(s/def ::$/depends? fn?)
 
-  (s/def :$/merge-query fn?)
+(s/def ::$/merge-query fn?)
 
-  ;; shadows definition in lattice.alfa.api
-  (s/def :$/impl
-    (s/merge :$/base-impl
-             (s/keys :req-un [:$/om-ui]
-                     :opt-un [:$/depends? :$/merge-query])))
+(s/def ::$/impl
+  (s/merge ::$/base-impl
+           (s/keys :req-un [::$/om-ui]
+                   :opt-un [::$/depends? ::$/merge-query])))
 
-  ;; shadows definition in lattice.alfa.api
-  (s/def :$/region-ui-impl
-    (s/merge :$/impl
-             (s/keys :req-un [:$/region?]))))
+(s/def ::$/region-ui-impl
+  (s/merge ::$/impl
+           (s/keys :req-un [::$/region?])))
 
 (defn create-element
   ([tag]
