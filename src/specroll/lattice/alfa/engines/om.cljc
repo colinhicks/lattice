@@ -34,7 +34,7 @@
       :cljs (js/React.createElement tag opts children))))
 
 (defmethod extensions/dom-impl :default [tag]
-  {:factory (partial create-element tag)})
+  {:factory (partial create-element (name tag))})
 
 (defn not-implemented-ui [tag]
   (ui
@@ -53,7 +53,7 @@
      :factory (om/factory om-ui)}))
 
 (defn collect-query [nodes]
-  (into [:lattice/id]
+  (into [:lattice/id :lattice/resolved-tree]
         (map (fn [{:keys [tag opts impl]}]
                (let [{:keys [om-ui merge-query]} impl
                      q (if om-ui
@@ -100,9 +100,9 @@
                      dependent-reads))
         (om/ast->query))))
 
-(defn region* [resolved-tree]
-  (let [child-nodes (l/collect-ui-nodes resolved-tree)
-        query (collect-query child-nodes)
+(defn region* [init-resolved-tree]
+  (let [init-child-nodes (l/collect-ui-nodes init-resolved-tree)
+        init-query (collect-query init-child-nodes)
         region-component
         (ui
           static om/Ident
@@ -110,18 +110,59 @@
             [(:lattice/id props) '_])
           static om/IQuery
           (query [this]
-            query)
+            init-query)
           om/ITxIntercept
           (tx-intercept [this tx]
-            (include-dependent-keys tx (om/props this) child-nodes))
+            (let [{:keys [lattice/resolved-tree] :as props} (om/props this)
+                  child-nodes (if resolved-tree
+                                (l/collect-ui-nodes resolved-tree)
+                                init-child-nodes)]
+              (include-dependent-keys tx (om/props this) child-nodes)))
           Object
           (render [this]
-            (let [props (om/props this)]
-              (first (rendering-tree props resolved-tree)))))]
+            (let [{:keys [lattice/resolved-tree] :as props} (om/props this)
+                  resolved-tree' (or resolved-tree init-resolved-tree)]
+              (first (rendering-tree props resolved-tree')))))]
     {:om-ui region-component
      :factory (om/factory region-component)
      :region? true
-     :child-ui-nodes child-nodes}))
+     :child-ui-nodes init-child-nodes}))
 
 (defmethod extensions/region-ui-impl :lattice/region [_ node]
   (region* (:children node)))
+
+(defn template [{:keys [opts children]}]
+  (let [{:keys [lattice.tmpl/spec]} opts]
+    {:region? true
+     :spec spec}))
+
+(defmethod extensions/region-ui-impl :lattice/tmpl [_ node]
+  (template node))
+
+
+(comment 
+  (let [tree (-> [:lattice/tmpl {:lattice/id ::tmpl-one :lattice.tmpl/spec :z/foo}
+                  '[:section
+                    [foo/bar [:div {:className foo.bar/class-name} foo.bar/text]]
+                    [foo/baz [:aside foo.baz/text1 [:span foo.baz/text2]]]
+                    [foo/dne [:span "does not exist"]]]]
+                 (l/normalize-tree)
+                 (l/resolve-implementations))
+        spec (-> tree first :opts :lattice.tmpl/spec)]
+    (-> [{:foo.bar/class-name "hello" :foo.bar/text "world"}
+         {:foo.baz/text1 "baz1" :foo.baz/text2 "baz2"}]
+        (as-> x (s/conform spec x))
+        (l/replace-tree-syms (:children (first tree)))))
+
+
+  (s/def :foo.bar/class-name string?)
+  (s/def :foo.bar/text string?)
+  (s/def :foo.baz/text1 string?)
+  (s/def :foo.baz/text2 string?)
+  
+  (s/def :z/foo
+    (s/cat :foo/bar (s/keys :req [:foo.bar/class-name :foo.bar/text])
+           :foo/baz (s/keys :req [:foo.baz/text1 :foo.baz/text2])))
+  
+  
+  )

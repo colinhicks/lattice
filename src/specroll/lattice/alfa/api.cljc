@@ -8,7 +8,7 @@
 
 
 (defn region
-  ([tree] (region {} tree))
+  ([tree] (region {:lattice/id (keyword "gen.lattice" (str (gensym "region")))} tree))
   ([opts tree]
    (-> (if-not (= :lattice/region (first tree))
          [:lattice/region tree]

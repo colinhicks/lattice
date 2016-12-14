@@ -71,6 +71,10 @@
                     :foo true})
        api/region-db)
 
+  (->> sample-1
+       (api/region)
+       api/region-db)
+  
   (->> sample-3 api/region :children (rendering-tree {}))
 
   (->> sample-3 api/region :impl :om-ui om/get-query)
@@ -87,6 +91,5 @@
    '[(foo! {:bar false}) ::my-editor]
    {}
    (->> sample-1 api/region :impl :child-ui-nodes))
-
-
- )
+  
+  )

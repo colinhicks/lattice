@@ -1,6 +1,6 @@
 (set-env!
  :source-paths #{"src"}
- :resource-paths #{"public"}
+ :resource-paths #{"public" "src"}
  :dependencies '[[org.clojure/clojurescript "1.9.293"]
                  [org.omcljs/om "1.0.0-alpha47"]
                  [org.clojure/test.check "0.9.0" :scope "test"]
