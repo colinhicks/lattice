@@ -62,23 +62,43 @@
                  [k v])))
         opts))
 
-(defn replace-tree-syms [props tree]
-  (map (fn [node]
-         (cond
-           (symbol? node)
-           (get props (keyword node))
+(defn replace-tree-syms
+  ([props tree] (replace-tree-syms props tree nil))
+  ([props tree clonable-parent]
+   (keep (fn [node]
+           (cond
+             (symbol? node)
+             (if-let [v (get props (keyword node))]
+               v
+               (when (and (vector? props) clonable-parent)
+                 {:replace-parent? true
+                  :tag :div
+                  :opts {::cloned-template-container? true}
+                  :children
+                  (map (fn [v]
+                         (if (map? v)
+                           (-> clonable-parent
+                               (update :opts #(replace-opts-syms v %))
+                               (update :children #(replace-tree-syms v %)))
+                           (assoc clonable-parent :children [v])))
+                       props)}))
 
-           (not (map? node)) node
-           
-           (symbol? (:tag node))
-           (when-let [branch-props (get props (keyword (:tag node)))]
-             ;; todo: enforce singular child in spec
-             (first (replace-tree-syms (merge props branch-props)
-                                       (:children node))))
+             (not (map? node)) node
 
-           :default
-           (-> node
-               (update :opts #(replace-opts-syms props %))
-               (update :children #(replace-tree-syms props %)))))
-       tree))
+             (symbol? (:tag node))
+             (when-let [branch-props (get props (keyword (:tag node)))]
+               ;; todo: enforce singular child in spec
+               (first (replace-tree-syms branch-props
+                                         (:children node))))
+
+             :default
+             (let [node'
+                   (-> node
+                       (update :opts #(replace-opts-syms props %))
+                       (update :children #(replace-tree-syms props % node)))
+                   fc (first (:children node'))]
+               (if (:replace-parent? fc)
+                 (dissoc fc :replace-parent?)
+                 node'))))
+         tree)))
 

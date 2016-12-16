@@ -100,7 +100,7 @@
                      dependent-reads))
         (om/ast->query))))
 
-(defn region* [init-resolved-tree]
+(defn om-region-impl [init-resolved-tree]
   (let [init-child-nodes (l/collect-ui-nodes init-resolved-tree)
         init-query (collect-query init-child-nodes)
         region-component
@@ -129,40 +129,108 @@
      :child-ui-nodes init-child-nodes}))
 
 (defmethod extensions/region-ui-impl :lattice/region [_ node]
-  (region* (:children node)))
+  (om-region-impl (:children node)))
 
-(defn template [{:keys [opts children]}]
-  (let [{:keys [lattice.tmpl/spec]} opts]
-    {:region? true
-     :spec spec}))
+(defn spec->query [spec]
+  (let [desc (if (keyword? spec)
+               (s/describe spec)
+               spec)]
+    (when (coll? desc)
+      (case (keyword (first desc))
+        :keys
+        (->> desc
+             (rest)
+             (partition 2)
+             (mapcat second)
+             (into []
+                   (map (fn [ik]
+                          (if-let [q (spec->query ik)]
+                            {ik q}
+                            ik)))))
+
+        :cat
+        (->> desc
+             (rest)
+             (partition 2)
+             (into {}
+                   (map (fn [[ik ispec]]
+                          [ik (or (spec->query ispec) [])]))))
+
+        :every
+        (let [[_ ispec _ into-coll] desc]
+          (if (map? into-coll)
+            (with-meta ::spec->query-not-supported
+              {:spec spec})
+            (spec->query ispec)))
+
+        (:tuple :alt)
+        (with-meta ::spec->query-not-supported
+          {:spec spec})
+
+        (spec->query (second desc))))))
+
+(defn om-template-impl [{:keys [opts children]}]
+  (let [{:keys [lattice.tmpl/spec]} opts
+        ;;init-query (spec->query spec)
+        template-component
+        (ui
+          static om/Ident
+          (ident [this props]
+            [(:lattice/id props) '_])
+          static om/IQuery
+          (query [this]
+            #_init-query
+            '[*])
+          Object
+          (render [this]
+            (let [props (s/conform spec (om/props this))
+                  templated-tree (l/replace-tree-syms props children)]
+              (first (rendering-tree props templated-tree)))))]
+    {:om-ui template-component
+     :factory (om/factory template-component)
+     :region? true
+     :child-ui-nodes (l/collect-ui-nodes children)}))
 
 (defmethod extensions/region-ui-impl :lattice/tmpl [_ node]
-  (template node))
+  (om-template-impl node))
 
 
-(comment 
+(comment
   (let [tree (-> [:lattice/tmpl {:lattice/id ::tmpl-one :lattice.tmpl/spec :z/foo}
                   '[:section
                     [foo/bar [:div {:className foo.bar/class-name} foo.bar/text]]
                     [foo/baz [:aside foo.baz/text1 [:span foo.baz/text2]]]
-                    [foo/dne [:span "does not exist"]]]]
+                    #_[foo/buzz [:p foo.bar/text]]]]
                  (l/normalize-tree)
                  (l/resolve-implementations))
-        spec (-> tree first :opts :lattice.tmpl/spec)]
-    (-> [{:foo.bar/class-name "hello" :foo.bar/text "world"}
-         {:foo.baz/text1 "baz1" :foo.baz/text2 "baz2"}]
-        (as-> x (s/conform spec x))
-        (l/replace-tree-syms (:children (first tree)))))
+        spec (-> tree first :opts :lattice.tmpl/spec)
+        props (->> [{:foo.bar/class-name "hello" :foo.bar/text "world"}
+                    {:foo.baz/text1 "baz1" :foo.baz/text2 "baz2"}
+                    ]
+                   (s/conform spec))]
+    (l/replace-tree-syms props (:children (first tree))))
+
+  (let [tree (-> [:lattice/tmpl {:lattice/id ::tmpl-one :lattice.tmpl/spec :z/foo}
+                  '[:section
+                    [foo/buzzes [:p {:className "buzz" :data-name foo.bar/name} foo.bar/text]]]]
+                 (l/normalize-tree)
+                 (l/resolve-implementations))
+        spec (-> tree first :opts :lattice.tmpl/spec)
+        props (->> [[{:foo.bar/text "lorem ipsum dolor" :foo.bar/name "lorem"}
+                     {:foo.bar/text "sit amet."}]]
+                   (s/conform spec))]
+    (l/replace-tree-syms props (:children (first tree))))
 
 
   (s/def :foo.bar/class-name string?)
   (s/def :foo.bar/text string?)
   (s/def :foo.baz/text1 string?)
   (s/def :foo.baz/text2 string?)
-  
+
   (s/def :z/foo
-    (s/cat :foo/bar (s/keys :req [:foo.bar/class-name :foo.bar/text])
-           :foo/baz (s/keys :req [:foo.baz/text1 :foo.baz/text2])))
-  
+    (s/cat :foo/bar (s/? (s/keys :req [:foo.bar/class-name :foo.bar/text]))
+           :foo/baz (s/? (s/keys :req [:foo.baz/text1 :foo.baz/text2]))
+           :foo/buzzes (s/? (s/coll-of (s/keys :req [:foo.bar/text])))
+           #_(s/? (s/coll-of string?))))
   
   )

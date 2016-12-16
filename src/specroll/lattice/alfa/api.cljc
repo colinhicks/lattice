@@ -28,7 +28,7 @@
                        [id opts]))))))
 
 
-(s/def ::$/tag keyword?)
+(s/def ::$/tag ident?)
 
 (s/def ::$/opts (s/nilable (s/map-of keyword? any? :conform-keys true)))
 
@@ -36,6 +36,7 @@
   (s/cat :tag ::$/tag
          :opts (s/? (s/spec ::$/opts))
          :children (s/* (s/spec (s/or :str string?
+                                      :sym symbol?
                                       :ctree ::$/tree)))))
 
 (s/def ::$/children (s/coll-of (s/or :node ::$/node-unresolved
