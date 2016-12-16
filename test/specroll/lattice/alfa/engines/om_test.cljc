@@ -69,11 +69,11 @@
   (->> sample-3
        (api/region {:lattice/id ::sample-3
                     :foo true})
-       api/region-db)
+       api/index-ui-opts)
 
   (->> sample-1
        (api/region)
-       api/region-db)
+       api/index-ui-opts)
   
   (->> sample-3 api/region :children (rendering-tree {}))
 

@@ -23,6 +23,9 @@
   (s/merge ::$/impl
            (s/keys :req-un [::$/region?])))
 
+(defn component [om-impl]
+  (:component om-impl))
+
 (defn create-element
   ([tag]
    (create-element tag nil))

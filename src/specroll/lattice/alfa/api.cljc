@@ -18,7 +18,7 @@
        (first)
        (update :opts merge opts))))
 
-(defn region-db [region]
+(defn index-ui-opts [region]
   (->> region
        (tree-seq #(-> % :impl :region?)
                  #(-> % :impl :child-ui-nodes))
