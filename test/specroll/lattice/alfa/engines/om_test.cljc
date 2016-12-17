@@ -1,4 +1,5 @@
 (ns specroll.lattice.alfa.engines.om-test
+  (:refer-clojure :exclude [read])
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [clojure.spec :as s]
             [clojure.spec.gen :as gen]
@@ -6,10 +7,11 @@
             [clojure.spec.test :as stest]
             [om.next :as om :refer [defui ui]]
             [om.dom :as dom]
+            [om.next.protocols :as p]
             [specroll.lattice.alfa.api :as api]
             [specroll.lattice.alfa.extensions :as extensions]
             [specroll.lattice.alfa.impl :as l]
-            [specroll.lattice.alfa.engines.om]))
+            [specroll.lattice.alfa.engines.om :as engines.om]))
 
 
 (require '[clojure.test.check]) ; clojure-emacs/cider#1841
@@ -41,6 +43,35 @@
                       {:gen {:specroll.lattice.specs/tree gen-tree}}))]
     (is (= total check-passed))))
 
+(defmulti read om/dispatch)
+(defmethod read :default
+  [{:keys [state parser query]} key _]
+  (let [st @state]
+    {:value (om/tree->db query (get st key) st)}))
+
+(defn create-rendering-region [tree]
+  (let [region (api/region tree)
+        id->opts (api/index-ui-opts region)
+        reconciler (om/reconciler {:state id->opts
+                                   :parser (om/parser {:read read})})
+        root-ui (engines.om/root-ui region)
+        mounted (om/add-root! reconciler root-ui nil)
+        wrapper (p/-render mounted)]
+    {:root-ui root-ui
+     :reconciler reconciler
+     :mounted mounted
+     :wrapper wrapper}))
+
+(defn rendering-props [c]
+  (-> c (p/-props) :omcljs$value))
+
+(comment
+  (let [rr (create-rendering-region (gen/generate (gen-tree)))]
+    [(rendering-props (:mounted rr))
+     (rendering-props (:wrapper rr))])
+  
+ )
+
 
 (comment
   (def sample-1
@@ -62,7 +93,7 @@
      [:lattice/region {:lattice/id ::sample-1} sample-1]
      [:lattice/region {:lattice/id ::sample-2} sample-2]])
 
-  (->> sample-3 l/normalize-tree l/resolve-implementations)
+  (->> sample-3 l/normalize-tree)
 
   (->> sample-3 api/region)
 
@@ -78,6 +109,8 @@
   (->> sample-3 api/region :children (rendering-tree {}))
 
   (->> sample-3 api/region :impl :om-ui om/get-query)
+
+  (->> sample-3 api/region engines.om/join-query)
 
   (-> sample-3 api/region :impl :factory (as-> f (dom/render-to-str (f))))
 

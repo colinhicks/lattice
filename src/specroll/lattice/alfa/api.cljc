@@ -8,15 +8,18 @@
 
 
 (defn region
-  ([tree] (region {:lattice/id (keyword "gen.lattice" (str (gensym "region")))} tree))
+  ([tree] (region {} tree))
   ([opts tree]
    (-> (if-not (= :lattice/region (first tree))
          [:lattice/region tree]
          tree)
        (l/normalize-tree)
+       (as-> t (into [] t))
+       (update-in [0 :opts] #(merge {:lattice/id (keyword "gen.lattice" (str (gensym "region")))}
+                                 %
+                                 opts))
        (l/resolve-implementations)
-       (first)
-       (update :opts merge opts))))
+       (first))))
 
 (defn index-ui-opts [region]
   (->> region

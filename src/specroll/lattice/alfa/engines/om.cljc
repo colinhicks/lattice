@@ -23,8 +23,12 @@
   (s/merge ::$/impl
            (s/keys :req-un [::$/region?])))
 
-(defn component [om-impl]
-  (:component om-impl))
+(defn component [region]
+  (:om-ui (:impl region)))
+
+(defn join-query [region]
+  (let [id (-> region :opts :lattice/id)]
+    {[id '_] (om/get-query (component region))}))
 
 (defn create-element
   ([tag]
@@ -76,8 +80,7 @@
                  {:keys [factory]} impl
                  {:keys [lattice/id]} opts]            
              (if id
-               (factory #?(:clj (get props id)
-                           :cljs (clj->js (get props id)))
+               (factory (get props [id '_])
                         (rendering-tree props children))
                (factory #?(:clj opts
                            :cljs (clj->js opts))
@@ -197,6 +200,18 @@
 (defmethod extensions/region-ui-impl :lattice/tmpl [_ node]
   (om-template-impl node))
 
+(defn root-ui [region]
+  (let [id (:lattice/id (:opts region))
+        query (join-query region)
+        factory (:factory (:impl region))]
+    (ui
+      static om/IQuery
+      (query [this]
+        [query])
+      Object
+      (render [this]
+        (let [props (get (om/props this) [id '_])]
+          (factory props))))))
 
 (comment
   (let [tree (-> [:lattice/tmpl {:lattice/id ::tmpl-one :lattice.tmpl/spec :z/foo}
