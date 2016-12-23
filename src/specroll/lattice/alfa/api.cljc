@@ -1,7 +1,8 @@
 (ns specroll.lattice.alfa.api
   (:require [clojure.spec :as s]
-            [#?(:clj clojure.spec.gen
-                :cljs cljs.spec.impl.gen) :as gen]
+            #?@(:clj [[clojure.spec.gen :as gen]]
+                :cljs [[cljs.spec.impl.gen :as gen :refer [dynaload]]])
+            [clojure.string :as str]
             [specroll.lattice.specs :as $]
             [specroll.lattice.alfa.impl :as l]
             [specroll.lattice.alfa.extensions :as extensions]))
@@ -31,21 +32,32 @@
                        [id opts]))))))
 
 
-(s/def ::$/tag ident?)
+;; specs
 
-(s/def ::$/opts (s/nilable (s/map-of keyword? any? :conform-keys true)))
+(s/def ::$/tag (s/with-gen ident? gen/keyword-ns)) ; Allow symbols (for templates), but don't gen them.
+
+(s/def ::$/opts (s/nilable (s/map-of keyword? any? :gen-max 2)))
+
+(declare fgen-lorem-ipsum fgen-tree)
+
+(s/def ::$/text (s/with-gen string? #(fgen-lorem-ipsum)))
 
 (s/def ::$/tree
-  (s/cat :tag ::$/tag
-         :opts (s/? (s/spec ::$/opts))
-         :children (s/* (s/spec (s/or :str string?
-                                      :sym symbol?
-                                      :ctree ::$/tree)))))
+  (s/with-gen
+    (s/cat :tag ::$/tag
+           :opts (s/? (s/spec ::$/opts))
+           :children (s/* (s/spec (s/or :text string?
+                                        :sym symbol?
+                                        :ctree ::$/tree))))
+    #(fgen-tree)))
 
-(s/def ::$/children (s/coll-of (s/or :node ::$/node-unresolved
-                                    :str string?)))
+(s/def ::$/children
+  (s/coll-of (s/or :node ::$/node-unresolved
+                   :str string?)
+             :gen-max 2))
 
-(s/def ::$/factory fn?)
+(s/def ::$/factory (s/fspec :args (s/* any?)
+                            :ret any?))
 
 (s/def ::$/base-impl (s/keys :req-un [::$/factory]))
 
@@ -95,3 +107,45 @@
   :args (s/cat :region ::$/region)
   :ret (s/every-kv ::$/ui-id ::$/ui-opts))
 
+
+;; generator implementations
+
+(def ^:private dom-tags
+  #{:a :abbr :address :area :article :aside :b :big :blockquote :body :br :button
+    :canvas :cite :code :col :colgroup :data :datalist :details :dialog :div :em
+    :embed :fieldset :figure :footer :form :h1 :h2 :h3 :h4 :h5 :h6 :head :header
+    :i :iframe :img :ins :label :legend :li :link :main :map :mark :menu :menuitem
+    :nav :noscript :object :ol :optgroup :output :p :param :picture :pre :progress
+    :script :section :small :source :span :strong :style :sub :summary :sup :table
+    :tbody :td :tfoot :th :thead :time :title :tr :u :ul :video})
+
+(defn fgen-tree []
+  (gen/fmap
+   (fn [vecs]
+     (reduce #(conj %2 %1)
+             (reverse vecs)))
+   (gen/bind
+    (gen/large-integer* {:min 1 :max 5})
+    (fn [depth]
+      (gen/vector (gen/one-of
+                   [(gen/tuple (s/gen dom-tags)
+                               (s/gen ::$/opts))
+                    (gen/tuple (gen/fmap #(keyword "gen.ui-tag" %)
+                                         (gen/such-that #(not= % "")
+                                                        (gen/string-alphanumeric)))
+                               (s/gen ::$/ui-opts))])
+                  depth)))))
+
+(def ^:private lorem-ipsum
+  "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?")
+
+(def ^:private lorem-sentences
+  (delay (str/split lorem-ipsum #" (?=[A-Z])")))
+
+(def ^:private shuffle-ref
+  #?(:clj (delay (#'gen/dynaload 'clojure.test.check.generators/shuffle))
+     :cljs (dynaload 'clojure.test.check.generators/shuffle)))
+
+(defn fgen-lorem-ipsum []
+  (gen/fmap #(str/join \space (take 2 %))
+            (@shuffle-ref @lorem-sentences)))

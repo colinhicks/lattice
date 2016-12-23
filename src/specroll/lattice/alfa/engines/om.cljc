@@ -4,7 +4,7 @@
             [specroll.lattice.specs :as $]
             [specroll.lattice.alfa.impl :as l]
             [specroll.lattice.alfa.extensions :as extensions]
-            [om.dom :as dom]
+            #?@(:clj [[om.dom :as dom]])
             [om.next :as om :refer [ui]]))
 
 
@@ -50,9 +50,9 @@
       [:lattice/id])
     Object
     (render [this]
-      (apply dom/div #js {:data-id (:lattice/id (om/props this))
-                          :data-tag-not-implemented (str tag)}
-             (om/children this)))))
+      (create-element "div" #js {:data-id (:lattice/id (om/props this))
+                                  :data-tag-not-implemented (str tag)}
+                      (om/children this)))))
 
 (defmethod extensions/ui-impl :default [tag]
   (let [om-ui (not-implemented-ui tag)]
@@ -80,7 +80,7 @@
                  {:keys [factory]} impl
                  {:keys [lattice/id]} opts]            
              (if id
-               (factory (get props [id '_])
+               (factory (get props id)
                         (rendering-tree props children))
                (factory #?(:clj opts
                            :cljs (clj->js opts))
@@ -120,15 +120,12 @@
           om/ITxIntercept
           (tx-intercept [this tx]
             (let [{:keys [lattice/resolved-tree] :as props} (om/props this)
-                  child-nodes (if resolved-tree
-                                (l/collect-ui-nodes resolved-tree)
-                                init-child-nodes)]
+                  child-nodes (l/collect-ui-nodes resolved-tree)]
               (include-dependent-keys tx (om/props this) child-nodes)))
           Object
           (render [this]
-            (let [{:keys [lattice/resolved-tree] :as props} (om/props this)
-                  resolved-tree' (or resolved-tree init-resolved-tree)]
-              (first (rendering-tree props resolved-tree')))))]
+            (let [{:keys [lattice/resolved-tree] :as props} (om/props this)]
+              (first (rendering-tree props resolved-tree)))))]
     {:om-ui region-component
      :factory (om/factory region-component)
      :region? true
@@ -212,6 +209,10 @@
       (render [this]
         (let [props (get (om/props this) [id '_])]
           (factory props))))))
+
+(defn parser-easy-read [{:keys [state query]} key _]
+  (let [st @state]
+    {:value (om/db->tree query (get st key) st)}))
 
 (comment
   (let [tree (-> [:lattice/tmpl {:lattice/id ::tmpl-one :lattice.tmpl/spec :z/foo}

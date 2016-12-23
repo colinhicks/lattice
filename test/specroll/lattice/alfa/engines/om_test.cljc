@@ -2,75 +2,63 @@
   (:refer-clojure :exclude [read])
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [clojure.spec :as s]
-            [clojure.spec.gen :as gen]
-            [clojure.test.check.generators :refer [recursive-gen]]
+            [#?(:clj clojure.spec.gen
+                :cljs cljs.spec.impl.gen) :as gen]
             [clojure.spec.test :as stest]
+            #?@(:clj [[om.dom :as dom]]
+                :cljs [[cljsjs.react]
+                       [goog.object :as gobj]])
+            [com.gfredericks.test.chuck.clojure-test :refer [checking]]
             [om.next :as om :refer [defui ui]]
-            [om.dom :as dom]
             [om.next.protocols :as p]
+            [specroll.lattice.specs :as $]
             [specroll.lattice.alfa.api :as api]
             [specroll.lattice.alfa.extensions :as extensions]
             [specroll.lattice.alfa.impl :as l]
             [specroll.lattice.alfa.engines.om :as engines.om]))
 
 
-(require '[clojure.test.check]) ; clojure-emacs/cider#1841
-
-(def dom-tag-gen
-  (s/gen (set (map keyword dom/tags))))
-
-(defn gen-tree
-  ([] (gen-tree []))
-  ([ui-tags]
-   (recursive-gen
-    (fn [inner]
-      (gen/one-of
-       [inner
-        (gen/tuple dom-tag-gen (gen/one-of [inner (gen/string-ascii)]))
-        (gen/tuple (gen/elements (into [:lattice/region] ui-tags))
-                   (gen/fmap (fn [k]
-                               {:lattice/id (keyword "test.gen.lattice.ui-id" k)})
-                             (gen/such-that
-                              #(not= % "")
-                              (gen/string-alphanumeric)))
-                   inner)]))
-    (gen/tuple dom-tag-gen))))
-
-(deftest region-gen-test
-  (let [{:keys [total check-passed]}
-        (stest/summarize-results
-         (stest/check `api/region
-                      {:gen {:specroll.lattice.specs/tree gen-tree}}))]
-    (is (= total check-passed))))
-
-(defmulti read om/dispatch)
-(defmethod read :default
-  [{:keys [state parser query]} key _]
-  (let [st @state]
-    {:value (om/tree->db query (get st key) st)}))
-
-(defn create-rendering-region [tree]
-  (let [region (api/region tree)
-        id->opts (api/index-ui-opts region)
-        reconciler (om/reconciler {:state id->opts
-                                   :parser (om/parser {:read read})})
-        root-ui (engines.om/root-ui region)
-        mounted (om/add-root! reconciler root-ui nil)
-        wrapper (p/-render mounted)]
-    {:root-ui root-ui
-     :reconciler reconciler
-     :mounted mounted
-     :wrapper wrapper}))
-
-(defn rendering-props [c]
-  (-> c (p/-props) :omcljs$value))
 
 (comment
-  (let [rr (create-rendering-region (gen/generate (gen-tree)))]
-    [(rendering-props (:mounted rr))
-     (rendering-props (:wrapper rr))])
+  (s/conform ::$/tree (gen/generate (fgen-tree)))
   
- )
+  (gen/generate (s/gen ::$/tree))
+  
+  )
+
+#?(:clj ;; todo: figure out why node runs out of memory
+   (deftest region-gen-test
+     (let [{:keys [total check-passed]}
+           (stest/summarize-results
+            (stest/check `api/region {:clojure.spec.test.check/opts {:max-size 2}}))]
+       (is (= total check-passed)))))
+
+(defn pkg [region]
+  (let [id->opts (api/index-ui-opts region)
+        #?@(:cljs [test-renderer (js/React.addons.TestUtils.createRenderer)])
+        reconciler (om/reconciler {:state id->opts
+                                   :parser (om/parser {:read engines.om/parser-easy-read})
+                                   #?@(:cljs [:root-render (fn [c _]
+                                                             (.render test-renderer c))])})
+        root-ui (engines.om/root-ui region)]
+    {:region region-gen-test
+     :id->opts id->opts
+     :root-ui root-ui
+     :reconciler reconciler
+     #?@(:cljs [:test-renderer test-renderer])}))
+
+(defn pkg-render [{:keys [reconciler root-ui test-renderer] :as pkg}]
+  (let [c (om/add-root! reconciler root-ui :target)
+        rendered #?(:clj (p/-render c)
+                    :cljs (.getRenderOutput test-renderer))]
+    (assoc pkg :rendered rendered)))
+
+(defn pkg-props [{:keys [rendered] :as pkg}]
+  #?(:clj (om/props rendered)
+     :cljs (-> rendered
+               (.-props)
+               (om/get-props)
+               (om/unwrap))))
 
 
 (comment
@@ -93,6 +81,8 @@
      [:lattice/region {:lattice/id ::sample-1} sample-1]
      [:lattice/region {:lattice/id ::sample-2} sample-2]])
 
+  
+  
   (->> sample-3 l/normalize-tree)
 
   (->> sample-3 api/region)
